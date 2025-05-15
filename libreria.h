@@ -3,7 +3,9 @@
 
 //define section
 
+
 void dibujarMapa();
-void generarLaberinto();
+int generarLaberinto();
+
 
 #endif /* libreria_h */
