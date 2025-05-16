@@ -4,15 +4,17 @@
 #include <conio.h>
 #include <windows.h>
 #include <time.h>
+#include <string.h>
 
 #define SIZE 31
 // strcpy
 int laberinto[SIZE][SIZE] = {};
 
-void movement(int *x, int *y)
+int movement(int *x, int *y, int *acumulador_pts, char *mensaje, const char *nombre)
 {
     int new_x = *x;
     int new_y = *y;
+    mensaje[0] = '\0'; // Limpia el mensaje
 
     // Espera a que se presione una tecla de dirección o WASD
     while (1)
@@ -40,37 +42,81 @@ void movement(int *x, int *y)
         Sleep(10); // Pequeña pausa para evitar uso excesivo de CPU
     }
 
-    // Verifica límites
     if (new_x < 0 || new_x >= SIZE || new_y < 0 || new_y >= SIZE)
     {
-        printf("Fuera de límites\n");
-        return;
+        strcpy(mensaje, "Fuera de límites");
+        return 0;
     }
-    // Verifica si es muro
     if (laberinto[new_y][new_x] == 1)
     {
-        printf("No puedes pasar por aquí\n");
-        return;
+        strcpy(mensaje, "No puedes pasar por aquí");
+        return 0;
     }
-    // Recoge moneda
     if (laberinto[new_y][new_x] == 3)
     {
-        printf("Has recogido una moneda\n");
+        strcpy(mensaje, "Has recogido una moneda");
         laberinto[new_y][new_x] = 0;
+        *acumulador_pts += 200;
     }
-    // Llega a la salida
     if (laberinto[new_y][new_x] == 9)
     {
-        printf("Has llegado a la salida\n");
-        exit(0);
+        strcpy(mensaje, "Has llegado a la salida");
+        *acumulador_pts += 100;
+        system("cls");
+        dibujarMapa();
+        printf("%s\n", mensaje);
+        printf("Tu puntaje final es: %d\n", *acumulador_pts);
+
+        FILE *f = fopen("puntajes.txt", "a");
+        if (f == NULL)
+        {
+            printf("Error al abrir el archivo de puntajes.\n");
+        }
+        else
+        {
+            fprintf(f, "Puntaje de %s: %d\n", nombre, *acumulador_pts);
+            fclose(f);
+        }
+        // En vez de exit(0), retorna un valor especial para indicar que se llegó a la salida
+        *x = new_x;
+        *y = new_y;
+        laberinto[*y][*x] = 2;
+        return 1;
     }
-    // Actualiza la posición del jugador en el mapa
-    laberinto[*y][*x] = 0; // Borra la posición anterior
+    laberinto[*y][*x] = 0;
     *x = new_x;
     *y = new_y;
-    laberinto[*y][*x] = 2; // Nueva posición
-    system("cls");         // Limpia la pantalla
-    dibujarMapa();         // Redibuja el mapa
+    laberinto[*y][*x] = 2;
+    system("cls");
+    dibujarMapa();
+    printf("Puntaje: %d\n", *acumulador_pts);
+    if (mensaje[0] != '\0')
+        printf("%s\n", mensaje);
+    return 0;
+}
+
+void menu_usuario(char *nombre, size_t nombre_size)
+{
+    printf("╔════════════════════════════════╗\n");
+    printf("║    Bienvenido al Laberinto     ║\n");
+    printf("╠════════════════════════════════╣\n");
+    printf("║      Introduce tu nombre:      ║\n");
+    printf("║      _____________________     ║\n");
+    printf("║      |                   |     ║\n");
+    printf("║      |                   |     ║\n");
+    printf("║      |___________________|     ║\n");
+    printf("║                                ║\n");
+    printf("║  Presiona ENTER para continuar ║\n");
+    printf("╚════════════════════════════════╝\n");
+
+    printf("\033[7;15H");
+
+    fgets(nombre, nombre_size, stdin); // Lee el nombre del usuario
+    nombre[strcspn(nombre, "\n")] = 0; // Elimina el salto de línea
+
+    getchar(); // Espera a que el usuario presione ENTER
+
+    printf("\n\n\n\n\n\nBienvenido %s! \n", nombre);
 }
 
 void generarmonedas()
@@ -82,26 +128,25 @@ void generarmonedas()
             // Solo poner monedas en espacios vacíos
             if (laberinto[y][x] == 0)
             {
-                int randnum = rand() % 10;
+                int randnum = rand() % 15;
                 if (randnum == 0)
                 {
-                    laberinto[y][x] = 3; // 10% de probabilidad de moneda
+                    laberinto[y][x] = 3; // probabilidad de 1/50 de poner una moneda
                 }
             }
         }
     }
 }
 
-// Change the signature to return the player position via pointers
-int generarLaberinto(int *playerpositionx, int *playerpositiony)
+int generarLaberinto(int *playerpositionx, int *playerpositiony, const char *filename)
 {
     *playerpositionx = 0;
     *playerpositiony = 0;
     FILE *f;
-    f = fopen("lab1.txt", "r");
+    f = fopen(filename, "r");
     if (f == NULL)
     {
-        printf("Error al abrir el archivo laberinto.txt\n");
+        printf("Error al abrir el archivo %s\n", filename);
         return 0;
     }
     for (int y = 0; y < SIZE; y++)
@@ -196,19 +241,106 @@ void printmapa()
     }
 }
 
+int elegirLaberinto(int *playerpositionx, int *playerpositiony)
+{
+    int laberintoElegido;
+    const char *filename = NULL;
+    printf("Elige el laberinto (1-3): ");
+    scanf("%d", &laberintoElegido);
+    switch (laberintoElegido)
+    {
+    case 1:
+        filename = "lab1.txt";
+        break;
+    case 2:
+        filename = "lab2.txt";
+        break;
+    case 3:
+        filename = "lab3.txt";
+        break;
+    default:
+        printf("Labirinto no válido.\n");
+        return 0;
+    }
+    return generarLaberinto(playerpositionx, playerpositiony, filename);
+}
+
+void highscores()
+{
+    FILE *f = fopen("puntajes.txt", "r");
+    if (f == NULL)
+    {
+        printf("Error al abrir el archivo de puntajes.\n");
+        return;
+    }
+    char line[100];
+    printf("╔════════════════════════════════╗\n");
+    printf("║           PUNTAJES             ║\n");
+    printf("╠════════════════════════════════╣\n");
+    while (fgets(line, sizeof(line), f))
+    {
+        printf("%s", line);
+    }
+    fclose(f);
+    printf("╚════════════════════════════════╝\n");
+}
 int main(void)
 {
     srand(time(NULL)); // Inicializa la semilla para la generación aleatoria
+    system("chcp 65001");
     system("cls");
     int playerpositionx, playerpositiony;
-    generarLaberinto(&playerpositionx, &playerpositiony);
+    int acumulador_pts = 0;
+    char mensaje[100] = "";
+    char nombre[32] = "";
+    menu_usuario(nombre, sizeof(nombre));
+    elegirLaberinto(&playerpositionx, &playerpositiony);
     generarmonedas();
+    Sleep(2000); // pausa de 2 segundos para ver el menu inicial
     dibujarMapa();
     while (1)
     {
-        movement(&playerpositionx, &playerpositiony);
+        int terminado = movement(&playerpositionx, &playerpositiony, &acumulador_pts, mensaje, nombre);
+        if (terminado == 1)
+            break;
         Sleep(100); // Pausa para evitar uso excesivo de CPU
     }
-    printf("x: %d y: %d\n", playerpositionx, playerpositiony);
+    getchar();   // Espera a que el usuario presione ENTER
+    Sleep(2000); // pausa de 2 segundos para ver el mensaje final
+
+    int opcion;
+    do
+    {
+        printf("1. Jugar de nuevo \n");
+        printf("2. Ver puntajes \n");
+        printf("3. Cambiar de jugador \n");
+        printf("4. Salir \n");
+        printf("Elige una opción: ");
+        scanf("%d", &opcion);
+        getchar(); // Limpiar el buffer de entrada
+        switch (opcion)
+        {
+        case 1:
+            system("cls");
+            main();
+            return 0;
+        case 2:
+            system("cls");
+            highscores();
+            break;
+        case 3:
+            system("cls");
+            menu_usuario(nombre, sizeof(nombre));
+            break;
+        case 4:
+            system("cls");
+            printf("Gracias por jugar!\n");
+            break;
+        default:
+            system("cls");
+            printf("Opción no válida. Saliendo...\n");
+            break;
+        }
+    } while (opcion != 1 && opcion != 4 && opcion != 3);
     return 0;
 }

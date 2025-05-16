@@ -2,7 +2,12 @@
 #define libreria_h
 
 //define section
-
+typedef enum {
+    JUGANDO,
+    GANO,
+    PERDIO, 
+    MENU,
+} estadoJuego;
 
 void dibujarMapa();
 int generarLaberinto();
